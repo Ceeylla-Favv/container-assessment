@@ -5,3 +5,6 @@
 evidence/
 kubernetes/
 scripts/
+
+.env
+.env*
