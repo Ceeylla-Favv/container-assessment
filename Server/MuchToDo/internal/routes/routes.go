@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,8 @@ func RegisterRoutes(
 
 	// Public routes
 	router.GET("/health", healthHandler.CheckHealth)
+	router.HEAD("/health", func(c *gin.Context) {
+    c.Status(http.StatusOK)})
 
 	// Swagger documentation route
 	router.GET("/swagger/*any", func(c *gin.Context) {
