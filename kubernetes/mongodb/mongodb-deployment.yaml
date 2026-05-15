@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  namespace: muchtodo
+spec:
+  replicas: 1         # Run 1 copy of MongoDB (databases usually don't scale this way)
+  selector:
+    matchLabels:
+      app: mongodb    # This deployment manages pods with label "app: mongodb"
+  
+  template:           # Template for the pods this deployment creates
+    metadata:
+      labels:
+        app: mongodb  # Label on each pod (selector above finds them by this)
+    
+    spec:
+      containers:
+        - name: mongodb
+          image: mongo:6.0
+          ports:
+            - containerPort: 27017
+          
+          env:
+            # Pull username from Secret (not hardcoded!)
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret    # Name of the Secret object
+                  key: mongo-username     # Key within that Secret
+            
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: mongo-password
+            
+            - name: MONGO_INITDB_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: mongodb-config
+                  key: database-name
+          
+          volumeMounts:
+            # Mount the PVC at the path MongoDB uses for data
+            - name: mongodb-storage
+              mountPath: /data/db
+      
+      volumes:
+        # Connect the volume name above to the actual PVC
+        - name: mongodb-storage
+          persistentVolumeClaim:
+            claimName: mongodb-pvc
