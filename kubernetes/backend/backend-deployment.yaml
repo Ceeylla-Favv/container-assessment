@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: muchtodo
+spec:
+  replicas: 2           # Run 2 copies for reliability
+  selector:
+    matchLabels:
+      app: backend
+  
+  template:
+    metadata:
+      labels:
+        app: backend
+    
+    spec:
+      containers:
+        - name: backend
+          image: backend:latest
+      
+          imagePullPolicy: Never
+          
+          ports:
+            - containerPort: 8080
+          
+          env:
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: mongo-uri
+            
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: PORT
+          
+          # Resource limits prevent one pod from hogging all memory/CPU
+          resources:
+            requests:              # Minimum guaranteed resources
+              memory: "64Mi"       # 64 Megabytes RAM
+              cpu: "250m"          # 250 millicores = 0.25 CPU
+            limits:                # Maximum allowed
+              memory: "128Mi"
+              cpu: "500m"
+          
+          # Liveness probe: "Is this pod still alive?"
+          # If this fails 3 times, Kubernetes RESTARTS the pod
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15   # Wait 15s before first check
+            periodSeconds: 20         # Check every 20s
+            failureThreshold: 3
+          
+         
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
