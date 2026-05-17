@@ -18,6 +18,7 @@ spec:
       containers:
         - name: mongodb
           image: mongo:6.0
+          imagePullPolicy: Never   # Don't pull from Docker Hub, use local image (loaded into Kind)
           ports:
             - containerPort: 27017
           

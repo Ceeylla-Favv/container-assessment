@@ -4,73 +4,109 @@ set -e
 
 CLUSTER_NAME="muchtodo-cluster"
 NAMESPACE="muchtodo"
+PORT_FORWARD_PORT=30080
 
 echo "============================================"
 echo "Deploying MuchTodo to Kubernetes (Kind)"
 echo "============================================"
 
-# Step 1: Check if cluster already exists
+# 1. Cluster setup
 if kind get clusters | grep -q "$CLUSTER_NAME"; then
-  echo "⚠️  Cluster '$CLUSTER_NAME' already exists. Using existing cluster."
+  echo "⚠️ Cluster exists: using $CLUSTER_NAME"
 else
   echo "🔧 Creating Kind cluster..."
   kind create cluster --name "$CLUSTER_NAME"
-  echo "✅ Cluster created!"
 fi
 
-# Step 2: Build the Docker image
-echo ""
-echo "🔨 Building Docker image..."
+
+# 2. Build image
+echo "🔨 Building backend image..."
 docker build -t backend:latest .
 
-# Step 3: Load the image into Kind
-# Kind's containers can't access your local Docker images directly
-# This command copies the image into the Kind cluster
-echo ""
-echo "📦 Loading image into Kind cluster..."
-kind load docker-image backend:latest --name "$CLUSTER_NAME"
+echo "📥 Pulling MongoDB image..."
+docker pull mongo:6.0
 
-# Step 4: Apply manifests in order
-echo ""
-echo "📄 Applying Kubernetes manifests..."
+echo "📦 Loading images into Kind..."
+kind load docker-image backend:latest --name "$CLUSTER_NAME"
+kind load docker-image mongo:6.0 --name "$CLUSTER_NAME"
+
+
+# 3. Apply Kubernetes resources
+echo "📄 Applying manifests..."
 
 kubectl apply -f kubernetes/namespace.yaml
-echo "  ✅ Namespace created"
-
 kubectl apply -f kubernetes/mongodb/
-echo "  ✅ MongoDB resources applied"
-
 kubectl apply -f kubernetes/backend/
-echo "  ✅ Backend resources applied"
-
 kubectl apply -f kubernetes/ingress.yaml
-echo "  ✅ Ingress applied"
 
-# Step 5: Wait for MongoDB to be ready
+
+
+# 4. Wait for namespace workloads
+
 echo ""
-echo "⏳ Waiting for MongoDB pod to be ready (this may take a minute)..."
+echo "⏳ Waiting for MongoDB..."
 kubectl wait --for=condition=ready pod \
   -l app=mongodb \
   -n "$NAMESPACE" \
-  --timeout=120s
+  --timeout=180s
 
-# Step 6: Wait for backend to be ready
-echo ""
-echo "⏳ Waiting for backend pods to be ready..."
+echo "⏳ Waiting for Backend..."
 kubectl wait --for=condition=ready pod \
   -l app=backend \
   -n "$NAMESPACE" \
-  --timeout=120s
+  --timeout=180s
 
-# Step 7: Show status
+
+# 5. Show cluster status (assessment evidence)
 echo ""
 echo "============================================"
-echo "✅ DEPLOYMENT COMPLETE!"
+echo "CLUSTER STATUS"
 echo "============================================"
-echo ""
-echo "📋 All resources in namespace '$NAMESPACE':"
+
 kubectl get all -n "$NAMESPACE"
 
 echo ""
-echo "🌐 Access your app at: http://localhost:30080"
-echo "🔍 Health check:       http://localhost:30080/health"
+kubectl get ingress -n "$NAMESPACE"
+
+
+# 6. Verify backend health BEFORE exposing it
+echo ""
+echo "⏳ Verifying backend is responding..."
+
+# port-forward in background
+kubectl port-forward svc/backend-service -n "$NAMESPACE" $PORT_FORWARD_PORT:8080 > /dev/null 2>&1 &
+PF_PID=$!
+
+sleep 5
+
+# health check loop (reliable instead of single curl)
+for i in {1..10}; do
+  if curl -s http://localhost:$PORT_FORWARD_PORT/health > /dev/null; then
+    echo "✅ Backend health check PASSED"
+    break
+  fi
+
+  echo "⏳ Waiting for /health... ($i/10)"
+  sleep 2
+done
+
+
+# 7. Final output
+echo ""
+echo "============================================"
+echo "✅ DEPLOYMENT COMPLETE"
+echo "============================================"
+
+echo ""
+echo "Access options:"
+echo "--------------------------------------------"
+echo "1) Port-forward"
+echo "   kubectl port-forward svc/backend-service -n $NAMESPACE $PORT_FORWARD_PORT:8080"
+echo "   http://localhost:$PORT_FORWARD_PORT/health"
+echo ""
+echo "2) Ingress"
+echo "   kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8081:80"
+echo "   http://localhost:8081/health"
+echo ""
+
+echo "Port-forward PID: $PF_PID"

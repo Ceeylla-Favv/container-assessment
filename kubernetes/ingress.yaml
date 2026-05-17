@@ -3,9 +3,8 @@ kind: Ingress
 metadata:
   name: backend-ingress
   namespace: muchtodo
-  annotations:
-    kubernetes.io/ingress.class: "nginx"
 spec:
+  ingressClassName: nginx
   rules:
     - http:
         paths:
