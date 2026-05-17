@@ -1,6 +1,3 @@
-# README.md
-
-````markdown
 # MuchTodo – Container Assessment
 
 This project containerizes and deploys the MuchTodo backend application using Docker, Docker Compose, Kubernetes, and Kind.
