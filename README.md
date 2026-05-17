@@ -35,6 +35,7 @@ This assessment demonstrates:
 
 ---
 
+````markdown
 # Architecture
 
 LOCAL DEVELOPMENT (Docker Compose)
